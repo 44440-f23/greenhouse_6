@@ -1,18 +1,154 @@
 #include <Arduino.h>
+#include <painlessMesh.h>
 
-// put function declarations here:
-int myFunction(int, int);
+#define LEDPIN 2
 
-void setup() {
-  // put your setup code here, to run once:
-  int result = myFunction(2, 3);
+#define BLINK_PERIOD 3000
+#define BLINK_DURATION 100
+
+#define MESH_SSID "WhateverYouLike"
+#define MESH_PASSWORD "SomethingSneaky"
+#define MESH_PORT 5555
+
+
+#define MSG_DELAY_SEC 1
+
+uint32_t baseStationID =0;
+
+void receivedCallback(uint32_t from, String msg);
+void newConnectionCallback(uint32_t nodeID);
+void changedConnectionCallback();
+void nodeTimeAdjustedCallback(int32_t offset);
+void delayReceivedCallback(uint32_t from, int32_t delay);
+uint32_t parseSimpleJson(const char* jsonstring);
+
+void sendMessage();
+Task taskSendMessage(TASK_SECOND *MSG_DELAY_SEC, TASK_FOREVER, &sendMessage);
+
+Scheduler userSched;
+painlessMesh mesh;
+bool calc_delay = false;
+SimpleList<uint32_t> nodes;
+
+const size_t bufferSize = 1024;
+Task blinkNoNodes;
+bool onFlag = false;
+
+
+void setup()
+{
+  Serial.begin(9600);
+  pinMode(LEDPIN, OUTPUT);
+
+  mesh.setDebugMsgTypes(ERROR | DEBUG);
+  mesh.init(MESH_SSID, MESH_PASSWORD, &userSched, MESH_PORT);
+  mesh.onReceive(&receivedCallback);
+  mesh.onNewConnection(&newConnectionCallback);
+  mesh.onChangedConnections(&changedConnectionCallback);
+  mesh.onNodeTimeAdjusted(&nodeTimeAdjustedCallback);
+  mesh.onNodeDelayReceived(&delayReceivedCallback);
+
+
+  userSched.addTask(taskSendMessage);
+  taskSendMessage.enable();
+
+  blinkNoNodes.set(BLINK_PERIOD, (mesh.getNodeList().size() + 1) * 2, []()
+                   {
+    onFlag = !onFlag;
+    blinkNoNodes.delay(BLINK_DURATION);
+
+    if(blinkNoNodes.isLastIteration()){
+      blinkNoNodes.setIterations((mesh.getNodeList().size()+1)*2);
+      blinkNoNodes.enableDelayed(BLINK_PERIOD -
+      (mesh.getNodeTime() % (BLINK_PERIOD*1000)) / 1000);
+    } });
+    userSched.addTask(blinkNoNodes);
+    blinkNoNodes.enable();
+
+    randomSeed(analogRead(A0));
 }
 
-void loop() {
-  // put your main code here, to run repeatedly:
+void loop()
+{
+  mesh.update();
+  digitalWrite(LEDPIN, !onFlag);
 }
 
-// put function definitions here:
-int myFunction(int x, int y) {
-  return x + y;
+void sendMessage(){
+  String msg = "{\"id\": \"6\",\"temp\": \"20\",\"Humidity\": \"70\",\"SoilT\": \"15\",\"SoilM\": \"12\",\"LightS\": \"10\", }";
+  if(baseStationID==0){
+    Serial.println("Base Station no ID");
+  }
+  else{
+    mesh.sendSingle(baseStationID, msg);
+    Serial.println("message sent");
+  }
+  if(calc_delay){
+    auto node = nodes.begin();
+    while (node != nodes.begin()){
+      mesh.startDelayMeas(*node);
+      node++;
+    }
+    calc_delay=false;
+  }
+  //Serial.println("Sending msg: " + msg);
+  taskSendMessage.setInterval(random(TASK_SECOND * 1, TASK_SECOND * 5));
+}
+
+void receivedCallback(uint32_t from, String msg){
+  Serial.printf("Start here: Rec'd from %u, %s\n", from, msg.c_str());
+  try
+  {
+    baseStationID = parseSimpleJson(msg.c_str());
+  }
+  catch(const std::exception& e)
+  {
+    Serial.printf("ERROR in json parse");
+  }
+
+}
+
+void newConnectionCallback(uint32_t nodeID){
+  onFlag = false;
+  blinkNoNodes.setIterations((mesh.getNodeList().size() +1) *2);
+  blinkNoNodes.enableDelayed(BLINK_PERIOD - (mesh.getNodeTime() % (BLINK_PERIOD*1000)) / 1000);
+
+  Serial.printf("--> start Here: New Connection, nodeId = %u\n", nodeID);
+  Serial.printf("--> start Here: New Connection, %s\n", mesh.subConnectionJson(true));
+}
+
+void changedConnectionCallback(){
+  Serial.println("Connection Changed");
+  calc_delay=true;
+}
+
+void nodeTimeAdjustedCallback(int32_t offset){
+  Serial.printf("adjusted time %u. Offset = %d\n", mesh.getNodeTime(), offset);
+}
+
+void delayReceivedCallback(uint32_t from, int32_t delay){
+  Serial.printf("Delay to node %u is %d us\n", from, delay);
+}
+
+uint32_t parseSimpleJson(const char* jsonString)
+{
+//create the parsable json object
+StaticJsonDocument<bufferSize> jsonDoc;
+DeserializationError error = deserializeJson(jsonDoc, jsonString);
+
+
+// catch the errors if there are any
+if (error) {
+Serial.print("Failed to parse JSON: ");
+Serial.println(error.c_str());
+return 0;
+}
+
+
+uint32_t baseID = jsonDoc["basestation"];
+return baseID;
+
+// Output the json data
+Serial.print("basestation: ");
+Serial.println(baseID);
 }
