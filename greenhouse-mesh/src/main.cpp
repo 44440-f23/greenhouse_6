@@ -39,15 +39,19 @@ bool onFlag = false;
 //Temperature & Humidity Sensor setup
 uint8_t readReg(uint8_t reg, const void* pBuf, size_t size);
 uint8_t buf[4] = {0};
+float temp;
+float hum;
 
 //Soil Moisture Sensor setup
 #define SOIL_MOIST_PIN A0
 const int DRY_VAL = 3650;
 const int WET_VAL = 0;
 int intervals = (DRY_VAL - WET_VAL) / 3;
+int soilMoistureValue;
 
 //Light Sensor setup
-#define LIGHT_PIN A4
+#define LIGHT_PIN A1
+int val;
 
 
 
@@ -95,17 +99,14 @@ void loop()
   readReg(0x00, buf, 4);
   uint16_t data = buf[0] << 8 | buf[1];
   uint16_t data1 = buf[2] << 8 | buf[3];
-  float temp = (((float)data * 165 / 65535.0) - 40.0);
-  float hum = ((float)data1 / 65535.0) * 100;
+  temp = (((float)data * 165 / 65535.0) - 40.0);
+  hum = ((float)data1 / 65535.0) * 100;
 
 //Soil Moisture Sensor
-  int soilMoistureValue = analogRead(SOIL_MOIST_PIN);
+  //int soilMoistureValue = analogRead(SOIL_MOIST_PIN);
 
   //Light Sensor
-  int val = analogRead(LIGHT_PIN);
-  Serial.println(val,DEC);
-
-  delay(500);
+  val = analogRead(LIGHT_PIN);
 }
 
 uint8_t readReg(uint8_t reg, const void* pBuf, size_t size)
@@ -128,7 +129,7 @@ uint8_t readReg(uint8_t reg, const void* pBuf, size_t size)
 }
 
 void sendMessage(){
-  String msg = "{\"id\": \"6\",\"temp\": \"temp\",\"Humidity\": \"hum\",\"SoilM\": \"soilMoistureValue\",\"LightS\": \"val\", }";
+  String msg = "{\"id\": 6,\"temp\":" + String(temp) + ",\"humidity\":" + String(hum) + ",\"lightS\":" + String(val) +"}";
   Serial.println(msg);
   if(baseStationID==0){
     Serial.println("Base Station no ID");
