@@ -1,5 +1,5 @@
 # greenhouse_6
-Greenhouse project sensor station 6 code and things
+Greenhouse project sensor station 6 code and resources.
 
 
 ## Members
