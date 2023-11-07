@@ -7,6 +7,7 @@ Greenhouse project sensor station 6 code and resources.
 - Ty
 - Jake
 - Sawyer
+- Manasa
 
 ## Project Details
 
