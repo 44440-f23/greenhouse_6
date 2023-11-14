@@ -13,7 +13,7 @@
 #define MESH_PORT 5555
 
 
-#define MSG_DELAY_SEC 1
+#define MSG_DELAY_SEC 6000
 
 uint32_t baseStationID =0;
 
@@ -147,7 +147,7 @@ void sendMessage(){
     calc_delay=false;
   }
   //Serial.println("Sending msg: " + msg);
-  taskSendMessage.setInterval(random(TASK_SECOND * 1, TASK_SECOND * 5));
+  taskSendMessage.setInterval(60000);
 }
 
 void receivedCallback(uint32_t from, String msg){
